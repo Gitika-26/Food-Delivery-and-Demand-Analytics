@@ -29,16 +29,15 @@ By leveraging Machine Learning techniques, this project provides solutions for e
 ---
 
 ## 📂 Dataset & Preprocessing
-[cite_start]The dataset includes order-level details such as `Delivery_person_Age`, `Ratings`, `Restaurant_latitude`, `Weather`, `Road_traffic_density`, and `Time_taken`[cite: 31].
+The dataset includes order-level details such as `Delivery_person_Age`, `Ratings`, `Restaurant_latitude`, `Weather`, `Road_traffic_density`, and `Time_taken`
 
 **Preprocessing Steps:**
-**Missing Values:** Checked and confirmed zero missing values[cite: 34].
+**Missing Values:** Checked and confirmed zero missing values.
 **Encoding:** Ordinal Encoding for categorical variables (e.g., Weather: Sunny=0, Stormy=2).
 **Feature Engineering:** * Split `Order_Date` into Day, Month, Year, and Day_of_Week.
      Extracted `Order_hour` from order timestamps.
-**Scaling:** Applied Standard Scaler to normalize the dataset[cite: 47].
+**Scaling:** Applied Standard Scaler to normalize the dataset.
 
----
 
 ## 🛠️ Methodology & Results
 
