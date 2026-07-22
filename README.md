@@ -62,7 +62,6 @@ This solution utilizes a "Forecast-then-Optimize" approach:
 2.  **Lag Features:** Created time-series features like `Demand_Last_Hour` and `Demand_Yesterday_Same_Hour`.
 3.  **Forecasting:** Trained a Random Forest Regressor to predict demand for the next hour (MAE: 2.00 orders).
 4.  **Pricing Logic:**
-    *   If `Predicted > Capacity + 20%` → **1.5x Surge**.
     *   If `Predicted > Capacity` → **1.2x Surge**.
 
 **Business Impact:** The simulation resulted in an **extra revenue generation of 10.2%** (Rs. 7,016) compared to the base fixed-fee revenue.
