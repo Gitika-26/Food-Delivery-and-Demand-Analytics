@@ -110,9 +110,151 @@ with tab_surge:
             st.metric("Detected Zone", f"Zone {zone_id}")
 
 # --- TAB 3 ---
+# TAB 3 - DRIVER INSIGHTS
+
+# ==========================================================================
+
 with tab_driver:
+
     st.subheader("Driver Performance Segmentation")
+
+
+
     if driver_bundle is None:
-        st.warning("Driver model not found.")
+
+        st.warning("`models/driver_cluster_model.joblib` not found.")
+
     else:
-        st.write("Driver insights enabled.")
+
+        driver_scaler = driver_bundle["scaler"]
+
+        driver_kmeans = driver_bundle["model"]
+
+        feature_order = ["Delivery_person_Ratings", "Time_taken", "Total_Deliveries"]
+
+
+
+        c1, c2, c3 = st.columns(3)
+
+        rating = c1.slider("Average rating", 1.0, 5.0, 4.5, 0.1)
+
+        avg_time = c2.number_input("Average delivery time (min)", min_value=1.0, value=30.0)
+
+        total_deliveries = c3.number_input("Total deliveries completed", min_value=1, value=100)
+
+
+
+        if st.button("Analyze driver", type="primary"):
+
+            try:
+
+                scaled = driver_scaler.transform([[rating, avg_time, total_deliveries]])
+
+                cluster_id = int(driver_kmeans.predict(scaled)[0])
+
+
+
+                # Rank clusters using their (unscaled) centers to describe each one.
+
+                centers_scaled = driver_kmeans.cluster_centers_
+
+                centers = driver_scaler.inverse_transform(centers_scaled)
+
+                centers_df = pd.DataFrame(centers, columns=feature_order)
+
+                centers_df["Cluster"] = range(len(centers_df))
+
+
+
+                best_rating_cluster = centers_df["Delivery_person_Ratings"].idxmax()
+
+                fastest_cluster = centers_df["Time_taken"].idxmin()
+
+                most_experienced_cluster = centers_df["Total_Deliveries"].idxmax()
+
+
+
+                st.metric("Segment", f"Cluster {cluster_id}")
+
+
+
+                labels = []
+
+                if cluster_id == best_rating_cluster:
+
+                    labels.append("⭐ Top-rated")
+
+                if cluster_id == fastest_cluster:
+
+                    labels.append("⚡ Fastest")
+
+                if cluster_id == most_experienced_cluster:
+
+                    labels.append("🏆 Most experienced")
+
+                if not labels:
+
+                    labels.append("📦 Steady / building experience")
+
+
+
+                st.markdown("**Profile:** " + ", ".join(labels))
+
+
+
+                row = centers_df.loc[cluster_id]
+
+                st.write(
+
+                    f"Drivers in this segment average a **{row['Delivery_person_Ratings']:.2f}⭐** rating, "
+
+                    f"**{row['Time_taken']:.1f} min** delivery time, and **{row['Total_Deliveries']:.0f}** completed deliveries."
+
+                )
+
+
+
+                fig = go.Figure()
+
+                fig.add_trace(go.Scatter(
+
+                    x=centers_df["Time_taken"], y=centers_df["Delivery_person_Ratings"],
+
+                    mode="markers+text", text=[f"Cluster {i}" for i in centers_df["Cluster"]],
+
+                    textposition="top center", marker=dict(size=18, color="#4C78A8"), name="Other segments"
+
+                ))
+
+                fig.add_trace(go.Scatter(
+
+                    x=[avg_time], y=[rating], mode="markers", marker=dict(size=20, color="#E45756", symbol="star"),
+
+                    name="This driver"
+
+                ))
+
+                fig.update_layout(
+
+                    title="Driver segments: speed vs. quality",
+
+                    xaxis_title="Avg delivery time (min, lower is better)",
+
+                    yaxis_title="Avg rating (higher is better)",
+
+                    height=400,
+
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+            except Exception as e:
+
+                st.error(f"Couldn't analyze this driver: {e}")
+
+
+
+st.markdown("---")
+
+st.caption("Built from FinalProject.ipynb · ETA, surge pricing, and driver segmentation models.") 
+
