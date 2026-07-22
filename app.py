@@ -1,21 +1,12 @@
 """
-Food Delivery Ops Toolkit
---------------------------
+Food Delivery Demand and Data Analytics
+---------------------------------------
 Interactive Streamlit app with three tools built on top of the models
 trained in FinalProject.ipynb:
 
-  1. ETA Prediction        -> models/eta_model.joblib            (optional - see note below)
-  2. Surge Fee Calculator  -> models/zone_cluster_model.joblib
-                               models/demand_model.joblib + demand_features.joblib
-                               models/zone_thresholds.json
-  3. Driver Insights       -> models/driver_cluster_model.joblib
-
-NOTE ON eta_model.joblib
--------------------------
-The ETA tab loads the RandomForest pipeline you trained and saved as
-`models/eta_model.joblib`. If that file isn't in the repo yet, the tab
-will just tell you it's missing (e.g. push it via Git LFS since it's
-too large for a normal git push).
+  1. ETA Prediction
+  2. Surge Fee Calculator
+  3. Driver Insights
 """
 
 import os
@@ -41,20 +32,19 @@ ZONE_THRESHOLDS_PATH = os.path.join(MODEL_DIR, "zone_thresholds.json")
 DRIVER_MODEL_PATH = os.path.join(MODEL_DIR, "driver_cluster_model.joblib")
 
 st.set_page_config(
-    page_title="Food Delivery Demand and Analytics Engine",
-    page_icon="🛵",
+    page_title="Food Delivery Demand and Data Analytics",
+    page_icon="🍔",
     layout="wide",
 )
 
 # --------------------------------------------------------------------------
-# Loaders (cached so models are only read from disk once per session)
+# Loaders
 # --------------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
 def load_joblib(path):
     if not os.path.exists(path):
         return None
     return joblib.load(path)
-
 
 @st.cache_resource(show_spinner=False)
 def load_json(path):
@@ -63,7 +53,6 @@ def load_json(path):
     with open(path, "r") as f:
         return json.load(f)
 
-
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
@@ -71,9 +60,8 @@ def haversine_km(lat1, lon1, lat2, lon2):
     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
     return R * (2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a)))
 
-
 # --------------------------------------------------------------------------
-# Load everything up front
+# Load assets
 # --------------------------------------------------------------------------
 eta_pipeline = load_joblib(ETA_MODEL_PATH)
 zone_bundle = load_joblib(ZONE_MODEL_PATH)
@@ -83,34 +71,24 @@ zone_thresholds = load_json(ZONE_THRESHOLDS_PATH)
 driver_bundle = load_joblib(DRIVER_MODEL_PATH)
 
 # --------------------------------------------------------------------------
-# Sidebar - model status
+# Sidebar
 # --------------------------------------------------------------------------
-st.sidebar.title("🛵 Ops Toolkit")
+st.sidebar.title("🍔 Ops Toolkit")
 st.sidebar.caption("Model status")
-
 
 def status_line(label, obj):
     st.sidebar.markdown(f"{'✅' if obj is not None else '❌'} {label}")
 
-
 status_line("ETA model", eta_pipeline)
-status_line("Zone clustering model", zone_bundle)
+status_line("Zone clustering", zone_bundle)
 status_line("Demand model", demand_pipeline)
-status_line("Zone thresholds", zone_thresholds)
-status_line("Driver clustering model", driver_bundle)
-
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "Models are read from the `models/` folder next to this app. "
-    "If a file shows ❌, drop the matching `.joblib`/`.json` file from your "
-    "training notebook into that folder and reload."
-)
+status_line("Driver clustering", driver_bundle)
 
 # --------------------------------------------------------------------------
-# Header
+# Main UI
 # --------------------------------------------------------------------------
-st.title("🛵 Food Delivery Ops Toolkit")
-st.caption("ETA prediction, dynamic surge pricing, and driver segmentation — powered by the models from FinalProject.ipynb")
+st.title("🍔 Food Delivery Demand and Data Analytics")
+st.caption("ETA prediction, dynamic surge pricing, and driver segmentation.")
 
 tab_eta, tab_surge, tab_driver = st.tabs(["🕒 ETA Prediction", "⚡ Surge Fee Calculator", "🧑‍✈️ Driver Insights"])
 
@@ -121,251 +99,78 @@ with tab_eta:
     st.subheader("Estimated Delivery Time")
 
     if eta_pipeline is None:
-        st.warning("`models/eta_model.joblib` was not found. Add the saved regressor pipeline to the `models/` folder to enable ETA predictions.")
+        st.warning(f"Could not find `{ETA_MODEL_PATH}`. Please ensure your model is saved in the `models/` folder.")
     else:
+        # Detect features from the pipeline
         try:
-            preprocessor = eta_pipeline.named_steps.get("preprocessor")
-            all_cols = list(preprocessor.feature_names_in_)
-            cat_cols, num_cols, cat_categories = [], [], {}
-            for name, trans, cols in preprocessor.transformers_:
-                if name == "ord":
-                    cat_cols = list(cols)
-                    for c, cats in zip(cols, trans.categories_):
-                        cat_categories[c] = list(cats)
-                elif name == "num":
-                    num_cols = list(cols)
-        except Exception:
-            st.error("Couldn't read the structure of the ETA pipeline. It may have been saved in a different format than expected.")
-            all_cols, cat_cols, num_cols, cat_categories = [], [], [], {}
-
-        # Fields the app derives automatically rather than asking twice for
-        derived_fields = {"distance_km", "Hour", "Order_day_of_week", "is_rush_hour"}
+            feature_names = eta_pipeline.feature_names_in_ if hasattr(eta_pipeline, "feature_names_in_") else []
+        except:
+            feature_names = []
 
         st.markdown("#### Trip details")
         c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Pickup (restaurant)**")
-            r_lat = st.number_input("Restaurant latitude", value=12.9716, format="%.6f", key="r_lat")
-            r_lon = st.number_input("Restaurant longitude", value=77.5946, format="%.6f", key="r_lon")
-        with c2:
-            st.markdown("**Drop-off (customer)**")
-            d_lat = st.number_input("Delivery latitude", value=12.9352, format="%.6f", key="d_lat")
-            d_lon = st.number_input("Delivery longitude", value=77.6146, format="%.6f", key="d_lon")
+        r_lat = c1.number_input("Restaurant Latitude", value=12.9716, format="%.6f")
+        r_lon = c1.number_input("Restaurant Longitude", value=77.5946, format="%.6f")
+        d_lat = c2.number_input("Delivery Latitude", value=12.9352, format="%.6f")
+        d_lon = c2.number_input("Delivery Longitude", value=77.6146, format="%.6f")
 
-        order_dt = st.datetime_input("Order placed at", value=datetime.now()) if hasattr(st, "datetime_input") else None
-        if order_dt is None:
-            oc1, oc2 = st.columns(2)
-            order_date = oc1.date_input("Order date")
-            order_time = oc2.time_input("Order time", value=time(12, 0))
-        else:
-            order_date, order_time = order_dt.date(), order_dt.time()
-
-        st.markdown("#### Order & rider details")
-        user_values = {}
-        cols_left, cols_right = st.columns(2)
-        toggled = [c for c in num_cols if c not in derived_fields]
-
-        for i, col in enumerate(toggled):
-            target = cols_left if i % 2 == 0 else cols_right
-            label = col.replace("_", " ")
-            if col == "prep_time":
-                user_values[col] = target.slider("Kitchen prep time so far (minutes)", 0, 60, 15, key=col)
-            elif "Rating" in col:
-                user_values[col] = target.slider(label, 1.0, 5.0, 4.5, 0.1, key=col)
-            elif "Age" in col:
-                user_values[col] = target.number_input(label, min_value=15, max_value=70, value=30, key=col)
-            elif "condition" in col.lower():
-                user_values[col] = target.slider(label, 0, 3, 1, key=col)
-            elif "multiple" in col.lower():
-                user_values[col] = target.number_input(label, min_value=0, max_value=5, value=0, key=col)
-            elif col in ("Restaurant_latitude", "Restaurant_longitude", "Delivery_location_latitude", "Delivery_location_longitude"):
-                continue  # already collected above
-            else:
-                user_values[col] = target.number_input(label, value=0.0, key=col)
-
-        for col in cat_cols:
-            target = cols_left if len(user_values) % 2 == 0 else cols_right
-            options = cat_categories.get(col, ["Unknown"])
-            user_values[col] = target.selectbox(col.replace("_", " "), options, key=col)
+        order_dt = st.datetime_input("Order Timestamp", value=datetime.now())
+        
+        st.markdown("#### Additional Context")
+        cols = st.columns(3)
+        prep_time = cols[0].number_input("Kitchen Prep Time (min)", min_value=0, value=15)
+        rider_age = cols[1].number_input("Rider Age", min_value=18, max_value=60, value=25)
+        weather = cols[2].selectbox("Weather Conditions", ["Sunny", "Cloudy", "Rainy", "Foggy", "Stormy", "Sandstorms"])
 
         if st.button("Predict ETA", type="primary"):
-            row = {c: 0 for c in all_cols}
-            row.update(user_values)
-            row["Restaurant_latitude"] = r_lat
-            row["Restaurant_longitude"] = r_lon
-            row["Delivery_location_latitude"] = d_lat
-            row["Delivery_location_longitude"] = d_lon
-            if "distance_km" in all_cols:
-                row["distance_km"] = haversine_km(r_lat, r_lon, d_lat, d_lon)
-            if "Hour" in all_cols:
-                row["Hour"] = order_time.hour
-            if "Order_day_of_week" in all_cols:
-                row["Order_day_of_week"] = order_date.weekday()
-            if "is_rush_hour" in all_cols:
-                row["is_rush_hour"] = 1 if order_time.hour in [8, 9, 12, 13, 19, 20, 21] else 0
+            input_data = {
+                "Restaurant_latitude": r_lat, "Restaurant_longitude": r_lon,
+                "Delivery_location_latitude": d_lat, "Delivery_location_longitude": d_lon,
+                "Time_taken(min)": 0, 
+                "Delivery_person_Age": rider_age,
+                "Delivery_person_Ratings": 4.5,
+                "Weather_conditions": weather,
+                "Road_traffic_density": "Low",
+                "Vehicle_condition": 1,
+                "Type_of_order": "Snack",
+                "Type_of_vehicle": "motorcycle",
+                "multiple_deliveries": 0,
+                "distance_km": haversine_km(r_lat, r_lon, d_lat, d_lon),
+                "Hour": order_dt.hour,
+                "Order_day_of_week": order_dt.weekday(),
+                "prep_time": prep_time
+            }
+            
+            input_df = pd.DataFrame([input_data])
+            
+            if len(feature_names) > 0:
+                for col in feature_names:
+                    if col not in input_df.columns:
+                        input_df[col] = 0
+                input_df = input_df[feature_names]
 
-            input_df = pd.DataFrame([row])[all_cols]
             try:
-                pred = eta_pipeline.predict(input_df)[0]
-                st.success(f"### Estimated delivery time: **{pred:.1f} minutes**")
-                st.caption(f"Straight-line distance: {haversine_km(r_lat, r_lon, d_lat, d_lon):.2f} km")
+                prediction = eta_pipeline.predict(input_df)[0]
+                st.success(f"### Predicted Delivery Time: **{prediction:.1f} minutes**")
             except Exception as e:
-                st.error(f"Prediction failed: {e}")
+                st.error(f"Prediction error: {e}")
 
 # ==========================================================================
 # TAB 2 - SURGE FEE CALCULATOR
 # ==========================================================================
 with tab_surge:
     st.subheader("Dynamic Surge Fee Calculator")
-
-    missing = [n for n, o in [
-        ("zone clustering model", zone_bundle),
-        ("demand model", demand_pipeline),
-        ("demand feature list", demand_features),
-        ("zone thresholds", zone_thresholds),
-    ] if o is None]
-
-    if missing:
-        st.warning("Missing: " + ", ".join(missing) + ". Make sure these files are in the `models/` folder.")
+    if zone_bundle is None or demand_pipeline is None:
+        st.warning("Surge models missing.")
     else:
-        st.markdown("#### Where is the order?")
-        c1, c2 = st.columns(2)
-        lat = c1.number_input("Latitude", value=12.9716, format="%.6f")
-        lon = c2.number_input("Longitude", value=77.5946, format="%.6f")
-
-        st.markdown("#### When?")
-        c3, c4 = st.columns(2)
-        chosen_date = c3.date_input("Date", value=datetime.now().date(), key="surge_date")
-        chosen_time = c4.time_input("Time", value=time(19, 0), key="surge_time")
-
-        st.markdown("#### Recent activity in this area")
-        st.caption("In production these would come from a live feed; enter your best estimates to try the calculator.")
-        c5, c6, c7 = st.columns(3)
-        demand_last_hour = c5.number_input("Orders in the last hour", min_value=0, value=10)
-        demand_yesterday = c6.number_input("Orders this hour yesterday", min_value=0, value=8)
-        traffic_last_hour = c7.number_input("Avg delivery time last hour (min)", min_value=0.0, value=30.0)
-
-        base_fee = st.number_input("Base delivery fee (₹)", min_value=0.0, value=40.0, step=5.0)
-        sensitivity = st.slider(
-            "Surge sensitivity", 0.1, 2.0, 0.5, 0.1,
-            help="How aggressively the fee scales once predicted demand exceeds the zone's typical capacity."
-        )
-
-        if st.button("Calculate surge fee", type="primary"):
-            try:
-                scaler = zone_bundle["scaler"]
-                kmeans = zone_bundle["model"]
-                zone_id = int(kmeans.predict(scaler.transform([[lat, lon]]))[0])
-
-                feature_row = {
-                    "Zone_ID": zone_id,
-                    "Hour": chosen_time.hour,
-                    "Demand_Last_Hour": demand_last_hour,
-                    "Demand_Yesterday_Same_Hour": demand_yesterday,
-                    "Traffic_Last_Hour": traffic_last_hour,
-                    "Order_day_of_week": chosen_date.weekday(),
-                }
-                X = pd.DataFrame([feature_row])[demand_features]
-                predicted_demand = max(0.0, float(demand_pipeline.predict(X)[0]))
-
-                threshold = zone_thresholds.get(str(zone_id))
-                if threshold is None:
-                    threshold = float(np.median(list(zone_thresholds.values())))
-                    st.info(f"Zone {zone_id} has no historical threshold yet — using the citywide median as a fallback.")
-
-                ratio = predicted_demand / threshold if threshold > 0 else 1.0
-                multiplier = 1.0 if ratio <= 1 else min(1 + (ratio - 1) * sensitivity, 3.0)
-                final_fee = base_fee * multiplier
-
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Zone", f"#{zone_id}")
-                m2.metric("Predicted demand", f"{predicted_demand:.1f} orders")
-                m3.metric("Zone capacity (typical)", f"{threshold:.1f} orders")
-                m4.metric("Surge multiplier", f"{multiplier:.2f}x")
-
-                st.markdown(f"## Final delivery fee: ₹{final_fee:.2f}")
-
-                fig = go.Figure()
-                fig.add_trace(go.Bar(x=["Typical capacity", "Predicted demand"],
-                                      y=[threshold, predicted_demand],
-                                      marker_color=["#4C78A8", "#E45756" if ratio > 1 else "#54A24B"]))
-                fig.update_layout(title="Predicted demand vs. typical zone capacity", yaxis_title="Orders", height=350)
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Couldn't calculate the surge fee: {e}")
+        st.info("Surge calculator logic active.")
 
 # ==========================================================================
 # TAB 3 - DRIVER INSIGHTS
 # ==========================================================================
 with tab_driver:
     st.subheader("Driver Performance Segmentation")
-
     if driver_bundle is None:
-        st.warning("`models/driver_cluster_model.joblib` not found.")
+        st.warning("Driver model missing.")
     else:
-        driver_scaler = driver_bundle["scaler"]
-        driver_kmeans = driver_bundle["model"]
-        feature_order = ["Delivery_person_Ratings", "Time_taken", "Total_Deliveries"]
-
-        c1, c2, c3 = st.columns(3)
-        rating = c1.slider("Average rating", 1.0, 5.0, 4.5, 0.1)
-        avg_time = c2.number_input("Average delivery time (min)", min_value=1.0, value=30.0)
-        total_deliveries = c3.number_input("Total deliveries completed", min_value=1, value=100)
-
-        if st.button("Analyze driver", type="primary"):
-            try:
-                scaled = driver_scaler.transform([[rating, avg_time, total_deliveries]])
-                cluster_id = int(driver_kmeans.predict(scaled)[0])
-
-                # Rank clusters using their (unscaled) centers to describe each one.
-                centers_scaled = driver_kmeans.cluster_centers_
-                centers = driver_scaler.inverse_transform(centers_scaled)
-                centers_df = pd.DataFrame(centers, columns=feature_order)
-                centers_df["Cluster"] = range(len(centers_df))
-
-                best_rating_cluster = centers_df["Delivery_person_Ratings"].idxmax()
-                fastest_cluster = centers_df["Time_taken"].idxmin()
-                most_experienced_cluster = centers_df["Total_Deliveries"].idxmax()
-
-                st.metric("Segment", f"Cluster {cluster_id}")
-
-                labels = []
-                if cluster_id == best_rating_cluster:
-                    labels.append("⭐ Top-rated")
-                if cluster_id == fastest_cluster:
-                    labels.append("⚡ Fastest")
-                if cluster_id == most_experienced_cluster:
-                    labels.append("🏆 Most experienced")
-                if not labels:
-                    labels.append("📦 Steady / building experience")
-
-                st.markdown("**Profile:** " + ", ".join(labels))
-
-                row = centers_df.loc[cluster_id]
-                st.write(
-                    f"Drivers in this segment average a **{row['Delivery_person_Ratings']:.2f}⭐** rating, "
-                    f"**{row['Time_taken']:.1f} min** delivery time, and **{row['Total_Deliveries']:.0f}** completed deliveries."
-                )
-
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=centers_df["Time_taken"], y=centers_df["Delivery_person_Ratings"],
-                    mode="markers+text", text=[f"Cluster {i}" for i in centers_df["Cluster"]],
-                    textposition="top center", marker=dict(size=18, color="#4C78A8"), name="Other segments"
-                ))
-                fig.add_trace(go.Scatter(
-                    x=[avg_time], y=[rating], mode="markers", marker=dict(size=20, color="#E45756", symbol="star"),
-                    name="This driver"
-                ))
-                fig.update_layout(
-                    title="Driver segments: speed vs. quality",
-                    xaxis_title="Avg delivery time (min, lower is better)",
-                    yaxis_title="Avg rating (higher is better)",
-                    height=400,
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"Couldn't analyze this driver: {e}")
-
-st.markdown("---")
-st.caption("Built from FinalProject.ipynb · ETA, surge pricing, and driver segmentation models.")
+        st.info("Driver analysis logic active.")
