@@ -12,11 +12,10 @@ trained in FinalProject.ipynb:
 
 NOTE ON eta_model.joblib
 -------------------------
-This file was intentionally left out of the repo (too large for a normal
-git push). The app still works without it: the ETA tab will detect the
-missing file and either (a) let you train a small, GitHub-friendly
-version on the spot if `data/food.csv` is present in the repo, or
-(b) show instructions for adding the full model back via Git LFS.
+The ETA tab loads the RandomForest pipeline you trained and saved as
+`models/eta_model.joblib`. If that file isn't in the repo yet, the tab
+will just tell you it's missing (e.g. push it via Git LFS since it's
+too large for a normal git push).
 """
 
 import os
@@ -33,7 +32,6 @@ import plotly.graph_objects as go
 # Config
 # --------------------------------------------------------------------------
 MODEL_DIR = "models"
-DATA_PATH = os.path.join("data", "food.csv")
 
 ETA_MODEL_PATH = os.path.join(MODEL_DIR, "eta_model.joblib")
 ZONE_MODEL_PATH = os.path.join(MODEL_DIR, "zone_cluster_model.joblib")
@@ -43,7 +41,7 @@ ZONE_THRESHOLDS_PATH = os.path.join(MODEL_DIR, "zone_thresholds.json")
 DRIVER_MODEL_PATH = os.path.join(MODEL_DIR, "driver_cluster_model.joblib")
 
 st.set_page_config(
-    page_title="Food Delivery Ops Toolkit",
+    page_title="Food Delivery Demand and Analytics Engine",
     page_icon="🛵",
     layout="wide",
 )
@@ -64,80 +62,6 @@ def load_json(path):
         return None
     with open(path, "r") as f:
         return json.load(f)
-
-
-@st.cache_resource(show_spinner="Training a lightweight ETA model...")
-def train_lightweight_eta_model():
-    """Fallback trainer used only when eta_model.joblib is missing but the
-    raw dataset is available. Mirrors the feature engineering + preprocessing
-    from the notebook, but caps the RandomForest size so the resulting
-    .joblib file is small enough to commit to GitHub normally."""
-    from sklearn.model_selection import train_test_split
-    from sklearn.preprocessing import OrdinalEncoder, StandardScaler
-    from sklearn.compose import ColumnTransformer
-    from sklearn.pipeline import Pipeline
-    from sklearn.ensemble import RandomForestRegressor
-
-    if not os.path.exists(DATA_PATH):
-        return None
-
-    df = pd.read_csv(DATA_PATH)
-    data = df.copy()
-
-    def haversine_distance(d):
-        R = 6371.0
-        lat1, lon1 = np.radians(d["Restaurant_latitude"]), np.radians(d["Restaurant_longitude"])
-        lat2, lon2 = np.radians(d["Delivery_location_latitude"]), np.radians(d["Delivery_location_longitude"])
-        dlat, dlon = lat2 - lat1, lon2 - lon1
-        a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
-        return R * (2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a)))
-
-    data["distance_km"] = haversine_distance(data)
-
-    str_cols = ["Road_traffic_density", "Type_of_order", "Type_of_vehicle", "City", "Weather"]
-    for col in str_cols:
-        data[col] = data[col].astype(str).str.strip()
-
-    data["Order_Date"] = pd.to_datetime(data["Order_Date"], dayfirst=True)
-    data["Order_day_of_week"] = data["Order_Date"].dt.dayofweek
-    data["Time_Ordered"] = pd.to_datetime(data["Time_Ordered"], errors="coerce")
-    data["Time_Order_picked"] = pd.to_datetime(data["Time_Order_picked"], errors="coerce")
-    data["prep_time"] = (data["Time_Order_picked"] - data["Time_Ordered"]).dt.total_seconds() / 60
-    data["prep_time"] = data["prep_time"].fillna(data["prep_time"].median())
-    data["Hour"] = data["Time_Ordered"].dt.hour
-    data["is_rush_hour"] = data["Hour"].apply(lambda x: 1 if x in [8, 9, 12, 13, 19, 20, 21] else 0)
-
-    data = data.drop(columns=["ID", "Delivery_person_ID", "Time_Order_picked", "Time_Ordered", "Order_Date"],
-                      errors="ignore")
-
-    X = data.drop(["Time_taken"], axis=1)
-    y = data["Time_taken"]
-    numeric_features = [c for c in X.columns if c not in str_cols]
-
-    categories = [
-        ["Low", "Medium", "High", "Jam"],
-        ["Drinks", "Snack", "Meal", "Buffet"],
-        ["motorcycle", "scooter", "electric_scooter"],
-        ["Semi-Urban", "Urban", "Metropolitian"],
-        ["Sunny", "Windy", "Stormy", "Sandstorms", "Cloudy", "Fog"],
-    ]
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("ord", OrdinalEncoder(categories=categories, handle_unknown="use_encoded_value", unknown_value=-1), str_cols),
-            ("num", StandardScaler(), numeric_features),
-        ]
-    )
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Small model on purpose: keeps the pickled file lightweight for GitHub.
-    small_model = RandomForestRegressor(n_estimators=60, max_depth=12, random_state=42, n_jobs=-1)
-    pipeline = Pipeline(steps=[("preprocessor", preprocessor), ("model", small_model)])
-    pipeline.fit(X_train, y_train)
-
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(pipeline, ETA_MODEL_PATH)
-    return pipeline
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -197,29 +121,7 @@ with tab_eta:
     st.subheader("Estimated Delivery Time")
 
     if eta_pipeline is None:
-        st.warning(
-            "`models/eta_model.joblib` isn't in the repo yet (it was left out for being too large to push to GitHub normally)."
-        )
-        col_a, col_b = st.columns(2)
-        with col_a:
-            st.markdown("**Option 1 — Train a small version now**")
-            st.write("If `data/food.csv` is also in the repo, you can train a compact ETA model right here (fewer trees, capped depth) that's small enough to commit.")
-            if os.path.exists(DATA_PATH):
-                if st.button("Train lightweight ETA model"):
-                    pipeline = train_lightweight_eta_model()
-                    if pipeline is not None:
-                        st.success("Trained and saved to models/eta_model.joblib — reload the page to use it.")
-                    else:
-                        st.error("Training failed — check that data/food.csv matches the expected schema.")
-            else:
-                st.info("`data/food.csv` not found in the repo, so this option isn't available.")
-        with col_b:
-            st.markdown("**Option 2 — Add the original file**")
-            st.write(
-                "Use [Git LFS](https://git-lfs.com/) to push the original `eta_model.joblib` "
-                "(GitHub's normal file-size limit is 100 MB, LFS handles larger files):"
-            )
-            st.code("git lfs install\ngit lfs track \"models/*.joblib\"\ngit add .gitattributes models/eta_model.joblib\ngit commit -m \"Add ETA model via LFS\"\ngit push", language="bash")
+        st.warning("`models/eta_model.joblib` was not found. Add the saved regressor pipeline to the `models/` folder to enable ETA predictions.")
     else:
         try:
             preprocessor = eta_pipeline.named_steps.get("preprocessor")
