@@ -122,7 +122,7 @@ From this, two lag features are engineered per zone:
 ## Model Artifacts
  
 | File | Contents |
-|---|---|---|
+|---|---|
 | `models/eta_model.joblib` | Full `Pipeline` (preprocessing + Random Forest) for ETA prediction |
 | `models/zone_cluster_model.joblib` | Dict with `model` (KMeans) and `scaler` (StandardScaler) for mapping coordinates to zones |
 | `models/demand_model.joblib` | Full `Pipeline` (scaler + Random Forest) for next-hour demand forecasting |
