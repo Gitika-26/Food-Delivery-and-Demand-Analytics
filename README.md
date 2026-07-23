@@ -121,7 +121,7 @@ From this, two lag features are engineered per zone:
 - The clustering model + scaler are saved to `models/driver_cluster_model.joblib`.
 ## Model Artifacts
  
-| File | Produced by | Contents |
+| File | Contents |
 |---|---|---|
 | `models/eta_model.joblib` | Full `Pipeline` (preprocessing + Random Forest) for ETA prediction |
 | `models/zone_cluster_model.joblib` | Dict with `model` (KMeans) and `scaler` (StandardScaler) for mapping coordinates to zones |
