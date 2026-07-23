@@ -4,7 +4,8 @@
 A Streamlit app that serves the three models trained in MLPipeline.ipynb:
 
   1. ETA Prediction         -> models/eta_model.joblib
-  2. Demand & Surge Forecast -> models/demand_model.joblib
+  2. Demand & Surge Forecast -> models/zone_cluster_model.joblib (lat/lon -> Zone_ID)
+                                 models/demand_model.joblib
                                  models/demand_features.joblib
                                  models/zone_thresholds.json
   3. Driver Segmentation    -> models/driver_cluster_model.joblib
@@ -78,6 +79,11 @@ def load_demand_assets():
 @st.cache_resource(show_spinner=False)
 def load_driver_bundle():
     return joblib.load(MODELS_DIR / "driver_cluster_model.joblib")
+
+
+@st.cache_resource(show_spinner=False)
+def load_zone_bundle():
+    return joblib.load(MODELS_DIR / "zone_cluster_model.joblib")
 
 
 def missing_file_message(name: str, expected_path: str):
@@ -198,14 +204,20 @@ with tab1:
 # --------------------------------------------------------------------------
 with tab2:
     st.subheader("📈 Forecast Next-Hour Demand & Surge Zones")
-    st.write("Estimate how many orders a zone will see next hour and whether surge pricing should kick in.")
+    st.write(
+        "This mirrors the notebook: a location is first assigned to a **Zone_ID** "
+        "using the KMeans zone-clustering model, then that zone feeds the demand forecast."
+    )
 
     left, right = st.columns(2)
     with left:
-        zone_id = st.slider("Zone ID", 0, 19, 0)
+        st.markdown("**Location**")
+        delivery_lat = st.slider("Delivery Location Latitude", 8.0, 30.0, 12.97, 0.01)
+        delivery_lon = st.slider("Delivery Location Longitude", 70.0, 90.0, 77.59, 0.01)
         hour = st.slider("Hour of Day", 0, 23, 18)
         day_of_week_d = st.selectbox("Day of Week", DAYS, index=4, key="demand_day")
     with right:
+        st.markdown("**Recent Activity**")
         demand_last_hour = st.slider("Orders in the Last Hour", 0, 100, 20)
         demand_yesterday = st.slider("Orders at This Hour Yesterday", 0, 100, 18)
         traffic_last_hour = st.slider("Avg Delivery Time Last Hour (minutes)", 5, 90, 30)
@@ -219,6 +231,20 @@ with tab2:
     with result_col2:
         if run_demand:
             try:
+                # Step 1 — calculate the Zone_ID from coordinates, same as the notebook
+                try:
+                    zone_bundle = load_zone_bundle()
+                except FileNotFoundError:
+                    missing_file_message("Zone Clustering", "models/zone_cluster_model.joblib")
+                    st.stop()
+                zone_model, zone_scaler = zone_bundle["model"], zone_bundle["scaler"]
+
+                coords = np.array([[delivery_lat, delivery_lon]])
+                scaled_coords = zone_scaler.transform(coords)
+                zone_id = int(zone_model.predict(scaled_coords)[0])
+                st.info(f"📍 Calculated **Zone_ID = {zone_id}** for this location.")
+
+                # Step 2 — forecast demand for that zone (everything else unchanged)
                 demand_model, feature_order, thresholds = load_demand_assets()
 
                 row = pd.DataFrame([{
