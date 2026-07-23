@@ -1,5 +1,10 @@
 # Food Delivery and Demand Analytics
 
+## Live Demo
+Access the interactive dashboard here:
+[Food Delivery and Demand Analytics](https://food-delivery-and-demand-analytics-7xexl4jpudseankjpsqeyt.streamlit.app/)
+
+
 This project analyzes food delivery data to predict Estimated Time of Arrival (ETA) using machine learning and provides actionable insights for demand management and driver performance.
 
 ## Overview
@@ -37,7 +42,4 @@ The application leverages a machine learning pipeline to help delivery platforms
 | SVR | 0.6423 | 5.5928 |
 | Linear Regression | 0.5783 | 6.0725 |
 
-## Live Demo
-Access the interactive dashboard here:
-[Food Delivery and Demand Analytics](https://food-delivery-and-demand-analytics-7xexl4jpudseankjpsqeyt.streamlit.app/)
 
