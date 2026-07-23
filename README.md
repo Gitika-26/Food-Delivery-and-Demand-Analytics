@@ -7,23 +7,6 @@ Access the interactive dashboard here:
 
 
  
-## Table of Contents
- 
-- [Overview](#overview)
-- [Dataset](#dataset)
-- [Project Structure](#project-structure)
-- [Pipeline Walkthrough](#pipeline-walkthrough)
-  - [1. Data Loading & Cleaning](#1-data-loading--cleaning)
-  - [2. Feature Engineering](#2-feature-engineering)
-  - [3. ETA Prediction](#3-eta-prediction)
-  - [4. Surge Fee / Demand Forecasting](#4-surge-fee--demand-forecasting)
-  - [5. Driver Performance Segmentation](#5-driver-performance-segmentation)
-- [Model Artifacts](#model-artifacts)
-- [Requirements](#requirements)
-- [Setup & Usage](#setup--usage)
-- [Design Notes](#design-notes)
-- [Known Issues / Limitations](#known-issues--limitations)
-- [Possible Extensions](#possible-extensions)
 ## Overview
  
 Food delivery platforms need to solve three interlocking operational problems at once: **how long will this delivery take**, **when should we charge a surge fee because a zone is overloaded**, and **who are our best drivers**. This notebook builds a lightweight but complete pipeline for all three, starting from a single raw CSV of historical deliveries and ending with saved, reusable model artifacts.
@@ -140,12 +123,12 @@ From this, two lag features are engineered per zone:
  
 | File | Produced by | Contents |
 |---|---|---|
-| `models/eta_model.joblib` | Section 3 | Full `Pipeline` (preprocessing + Random Forest) for ETA prediction |
-| `models/zone_cluster_model.joblib` | Section 4 | Dict with `model` (KMeans) and `scaler` (StandardScaler) for mapping coordinates to zones |
-| `models/demand_model.joblib` | Section 4 | Full `Pipeline` (scaler + Random Forest) for next-hour demand forecasting |
-| `models/demand_features.joblib` | Section 4 | List of feature names expected by the demand model, for consistent inference |
-| `models/zone_thresholds.json` | Section 4 | Dict mapping `Zone_ID` → 75th-percentile demand threshold |
-| `models/driver_cluster_model.joblib` | Section 5 | Dict with `model` (KMeans) and `scaler` (StandardScaler) for driver segmentation |
+| `models/eta_model.joblib` | Full `Pipeline` (preprocessing + Random Forest) for ETA prediction |
+| `models/zone_cluster_model.joblib` | Dict with `model` (KMeans) and `scaler` (StandardScaler) for mapping coordinates to zones |
+| `models/demand_model.joblib` | Full `Pipeline` (scaler + Random Forest) for next-hour demand forecasting |
+| `models/demand_features.joblib` | List of feature names expected by the demand model, for consistent inference |
+| `models/zone_thresholds.json` | Dict mapping `Zone_ID` → 75th-percentile demand threshold |
+| `models/driver_cluster_model.joblib` | Dict with `model` (KMeans) and `scaler` (StandardScaler) for driver segmentation |
  
 ## Requirements
  
