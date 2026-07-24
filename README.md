@@ -149,7 +149,7 @@ From this, two lag features are engineered per zone:
 jupyter notebook MLPipeline.ipynb
 ```
  
-4. After running, load any saved artifact for inference, e.g.:
+4. After running, load any saved model for inference, e.g.:
 ```python
 import joblib
  
@@ -157,10 +157,5 @@ eta_model = joblib.load("models/eta_model.joblib")
 prediction = eta_model.predict(new_orders_df)
 ```
  
-## Design Notes
- 
-- **Pipelines**: every model (ETA, demand) is wrapped in a `scikit-learn` `Pipeline` bundling preprocessing and the estimator together. This prevents train/test leakage during model comparison and means the saved `.joblib` file is a single, self-contained object — no need to separately track and re-apply a scaler or encoder at inference time.
-- **Ordinal encoding with explicit category order**: rather than one-hot encoding traffic density or weather, the notebook defines an explicit ordinal ranking (e.g. `Low < Medium < High < Jam`) where a natural order exists, preserving that signal for tree-based and linear models alike.
-- **Lag features for demand forecasting**: `Demand_Last_Hour` and `Demand_Yesterday_Same_Hour` let a fairly simple Random Forest capture both short-term momentum and daily seasonality without needing a dedicated time-series model.
-- **Zone-based rather than point-based surge logic**: clustering coordinates into discrete zones keeps the surge system interpretable and operationally simple (a small number of zone-level thresholds) rather than trying to price at the individual delivery level.
+
  
