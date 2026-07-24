@@ -1,5 +1,5 @@
 # Food Delivery and Demand Analytics
-An end-to-end machine learning pipeline for a food delivery platform, built from a single raw operations dataset. The pipeline produces three deployable artifacts: a delivery-time (ETA) predictor, a demand forecasting + surge pricing system, and a driver performance segmentation model.
+An end-to-end machine learning pipeline for a food delivery platform, built from a single operations dataset. The pipeline produces three deployable artifacts: a delivery-time (ETA) predictor, a demand forecasting + surge pricing system, and a driver performance segmentation model.
 
 ## Live Demo
 Access the interactive dashboard here:
@@ -67,7 +67,7 @@ The notebook expects a CSV at `data/food.csv`. Relevant columns used across the 
  
 - Loads `data/food.csv` with a guarded `try/except` so a missing file produces a clear error instead of a crash.
 - Checks for missing values with `isnull().sum()`.
-- Strips stray whitespace from categorical text columns (`Road_traffic_density`, `Type_of_order`, `Type_of_vehicle`, `City`, `Weather`), which is a common source of silent encoding bugs in scraped/exported operational data.
+- Strips whitespace from categorical text columns (`Road_traffic_density`, `Type_of_order`, `Type_of_vehicle`, `City`, `Weather`), which is a common source of encoding bugs in exported operational data.
 ### 2. Feature Engineering
  
 - **Haversine distance**: computes the great-circle distance in kilometers between the restaurant and the delivery address from raw latitude/longitude pairs — a far more informative feature than raw coordinates for predicting delivery time.
@@ -81,7 +81,7 @@ The notebook expects a CSV at `data/food.csv`. Relevant columns used across the 
  
 - Data is split 80/20 into train/test sets.
 - A `ColumnTransformer` handles preprocessing:
-  - `OrdinalEncoder` with an explicit, domain-informed category ordering for traffic density, order type, vehicle type, city tier, and weather (e.g. traffic is ordered `Low < Medium < High < Jam`, which preserves meaningful rank rather than treating categories as unordered).
+  - `OrdinalEncoder` with domain-informed category ordering for traffic density, order type, vehicle type, city tier, and weather (e.g. traffic is ordered `Low < Medium < High < Jam`, which preserves meaningful rank rather than treating categories as unordered).
   - `StandardScaler` for all remaining numeric features.
 - Four regressors are trained and compared inside identical pipelines (so preprocessing is refit correctly within each, avoiding leakage):
   - Linear Regression
@@ -95,7 +95,7 @@ The notebook expects a CSV at `data/food.csv`. Relevant columns used across the 
  
 **Goal:** identify overloaded delivery zones in near-real-time and support dynamic surge pricing decisions.
  
-**Step 1 — Zone clustering.** Valid (non-zero) delivery coordinates are standardized and clustered into **20 geographic zones** with `KMeans`. This turns raw lat/lon into a discrete, interpretable "zone" feature usable in downstream models. Zones are visualized as a color-coded scatter plot over the delivery area, and the clustering model + scaler are saved together (`models/zone_cluster_model.joblib`) so new coordinates can be mapped to the same zones later.
+**Step 1 — Zone clustering.** Valid (non-zero) delivery coordinates are standardized and clustered into **20 geographic zones** with `KMeans`. This turns lat/lon into a discrete, interpretable "zone" feature usable in downstream models. Zones are visualized as a color-coded scatter plot over the delivery area, and the clustering model + scaler are saved together (`models/zone_cluster_model.joblib`) so new coordinates can be mapped to the same zones later.
  
 **Step 2 — Historical demand aggregation.** Orders are grouped by `Zone_ID`, day of week, and hour to compute:
 - `Actual_Demand` — order count in that zone/hour slot
@@ -119,7 +119,7 @@ From this, two lag features are engineered per zone:
 - Clusters are visualized on a speed-vs-rating scatter plot, with dashed lines marking the overall average speed and rating for quick visual segmentation (e.g. fast+highly-rated vs. slow+low-rated).
 - The cluster with the highest average rating is treated as the "star driver" segment, and its typical age and delivery volume are printed as a hiring/coaching insight.
 - The clustering model + scaler are saved to `models/driver_cluster_model.joblib`.
-## Model Artifacts
+## Models Content
  
 | File | Contents |
 |---|---|
@@ -132,19 +132,14 @@ From this, two lag features are engineered per zone:
  
 ## Requirements
  
-- Python 3
+- `Python 3`
 - `pandas`
 - `numpy`
 - `matplotlib`
 - `seaborn`
 - `scikit-learn`
 - `joblib`
-Install with:
- 
-```bash
-pip install pandas numpy matplotlib seaborn scikit-learn joblib
-```
- 
+
 ## Setup & Usage
  
 1. Clone the repository and add your dataset at `data/food.csv`.
@@ -164,7 +159,7 @@ prediction = eta_model.predict(new_orders_df)
  
 ## Design Notes
  
-- **Pipelines over ad-hoc preprocessing**: every model (ETA, demand) is wrapped in a `scikit-learn` `Pipeline` bundling preprocessing and the estimator together. This prevents train/test leakage during model comparison and means the saved `.joblib` file is a single, self-contained object — no need to separately track and re-apply a scaler or encoder at inference time.
+- **Pipelines**: every model (ETA, demand) is wrapped in a `scikit-learn` `Pipeline` bundling preprocessing and the estimator together. This prevents train/test leakage during model comparison and means the saved `.joblib` file is a single, self-contained object — no need to separately track and re-apply a scaler or encoder at inference time.
 - **Ordinal encoding with explicit category order**: rather than one-hot encoding traffic density or weather, the notebook defines an explicit ordinal ranking (e.g. `Low < Medium < High < Jam`) where a natural order exists, preserving that signal for tree-based and linear models alike.
 - **Lag features for demand forecasting**: `Demand_Last_Hour` and `Demand_Yesterday_Same_Hour` let a fairly simple Random Forest capture both short-term momentum and daily seasonality without needing a dedicated time-series model.
 - **Zone-based rather than point-based surge logic**: clustering coordinates into discrete zones keeps the surge system interpretable and operationally simple (a small number of zone-level thresholds) rather than trying to price at the individual delivery level.
